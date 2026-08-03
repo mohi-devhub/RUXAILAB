@@ -39,7 +39,8 @@ service cloud.firestore {
       return
         (study.testType == 'USER' && roleFor(study) in [0, 3, 4, 5]) ||
         ((study.testType == 'HEURISTIC' || study.testType == 'HEURISTICS') &&
-          roleFor(study) in [0, 1, 2, 4]);
+          roleFor(study) in [0, 1, 2, 4]) ||
+        (study.testType == 'FOCUS_GROUP' && roleFor(study) in [0, 1, 3, 4]);
     }
 
     function isUserStudy(study) {
@@ -51,6 +52,12 @@ service cloud.firestore {
         study.testType == 'HEURISTICS';
     }
 
+    // Focus Group roles (studyRoleMap scale): 0 facilitator (Admin), 1 participant
+    // (Evaluator), 3 observer (Observator), 4 co-facilitator (Manager).
+    function isFocusGroupStudy(study) {
+      return study.testType == 'FOCUS_GROUP';
+    }
+
     function isRbacStudy(study) {
       return isUserStudy(study) || isHeuristicStudy(study);
     }
@@ -58,13 +65,15 @@ service cloud.firestore {
     function canViewDashboard(study) {
       return isAdmin(study) || isManager(study) ||
         (isUserStudy(study) && roleFor(study) == 3) ||
-        (isHeuristicStudy(study) && roleFor(study) in [1, 2]);
+        (isHeuristicStudy(study) && roleFor(study) in [1, 2]) ||
+        (isFocusGroupStudy(study) && roleFor(study) == 3);
     }
 
     function canViewAnswers(study) {
       return isAdmin(study) || isManager(study) ||
         (isUserStudy(study) && roleFor(study) == 3) ||
-        (isHeuristicStudy(study) && roleFor(study) in [1, 2]);
+        (isHeuristicStudy(study) && roleFor(study) in [1, 2]) ||
+        (isFocusGroupStudy(study) && roleFor(study) == 3);
     }
 
     function canAnswer(study) {
@@ -76,7 +85,8 @@ service cloud.firestore {
           roleFor(study) == 5 ||
           (roleFor(study) == 3 && study.subType == 'USER_MODERATED')
         )) ||
-        (isHeuristicStudy(study) && roleFor(study) == 1)
+        (isHeuristicStudy(study) && roleFor(study) == 1) ||
+        (isFocusGroupStudy(study) && roleFor(study) == 1)
       );
     }
 

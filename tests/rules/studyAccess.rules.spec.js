@@ -490,4 +490,37 @@ describe('Storage study RBAC', () => {
     )
     await assertFails(uploadBytes(participantUpload, new Uint8Array([1])))
   })
+
+  it('lets a Focus Group facilitator and participant upload a recording, but only the facilitator can read it back', async () => {
+    await testEnv.withSecurityRulesDisabled((adminContext) =>
+      updateDoc(doc(adminContext.firestore(), 'tests/study-1'), {
+        testType: 'FOCUS_GROUP',
+        studyRoleMap: { admin: 0, manager: 4, user: 1, observator: 3 },
+      }),
+    )
+
+    const participantUpload = ref(
+      context('user').storage(),
+      'tests/study-1/focusgroup_1/topic_1/recording.webm',
+    )
+    await assertSucceeds(uploadBytes(participantUpload, new Uint8Array([1])))
+
+    const observerUpload = ref(
+      context('observator').storage(),
+      'tests/study-1/focusgroup_2/topic_1/recording.webm',
+    )
+    await assertFails(uploadBytes(observerUpload, new Uint8Array([1])))
+
+    const facilitatorRead = ref(
+      context('admin').storage(),
+      'tests/study-1/focusgroup_1/topic_1/recording.webm',
+    )
+    await assertSucceeds(getBytes(facilitatorRead))
+
+    const participantRead = ref(
+      context('user').storage(),
+      'tests/study-1/focusgroup_1/topic_1/recording.webm',
+    )
+    await assertFails(getBytes(participantRead))
+  })
 })

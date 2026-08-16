@@ -54,6 +54,8 @@ export function useFocusGroupSession(studyId) {
   const currentPrompt = computed(() => snapshot.value?.currentPrompt ?? null)
   // Observer/note-taker notes, kept per observer: { [userId]: [{ text, timestamp, taskName }] }
   const notes = computed(() => snapshot.value?.notes ?? {})
+  // Per-attendee, per-topic recording segments: { [userId]: { [topicId]: { url, kind, sizeBytes, recordedAt } } }
+  const recordings = computed(() => snapshot.value?.recordings ?? {})
   // Per-topic countdown timer. Clients tick locally from `endsAt`; only the
   // facilitator's play/pause/reset write here, so there are no per-second writes.
   // { topicId, running, endsAt, remainingMs } | null
@@ -169,6 +171,24 @@ export function useFocusGroupSession(studyId) {
     await set(notesRef, Array.isArray(noteList) ? noteList : [])
   }
 
+  /**
+   * Record a finished per-topic recording segment. Each attendee writes only
+   * their own entry (own camera/mic, own upload), the same self-scoped
+   * pattern as observer notes — never someone else's recording.
+   */
+  async function saveRecording({ userId, topicId, url, kind, sizeBytes }) {
+    const recordingRef = dbRef(
+      database,
+      `${rootPath}/recordings/${userId}/${topicId}`,
+    )
+    await set(recordingRef, {
+      url,
+      kind: kind ?? 'video',
+      sizeBytes: sizeBytes ?? 0,
+      recordedAt: serverTimestamp(),
+    })
+  }
+
   // --- Topic timer (facilitator-controlled countdown) ---
   const timerRef = () => dbRef(database, `${rootPath}/timer`)
 
@@ -231,6 +251,7 @@ export function useFocusGroupSession(studyId) {
       participants: participants.value,
       messages: messages.value,
       consents: consents.value,
+      recordings: recordings.value,
     }
   }
 
@@ -250,6 +271,7 @@ export function useFocusGroupSession(studyId) {
     currentPrompt,
     notes,
     timer,
+    recordings,
     loaded,
     isLive,
     isEnded,
@@ -266,6 +288,7 @@ export function useFocusGroupSession(studyId) {
     askPrompt,
     clearPrompt,
     saveNotes,
+    saveRecording,
     playTimer,
     pauseTimer,
     resetTimer,

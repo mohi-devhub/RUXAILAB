@@ -64,13 +64,30 @@ service firebase.storage {
       );
     }
 
+    function isFocusGroupStudy(studyId) {
+      return study(studyId).testType == 'FOCUS_GROUP';
+    }
+
+    // Facilitator/co-facilitator/participant may upload their own session
+    // recording (canAnswerStudy has no FOCUS_GROUP case — recordings aren't
+    // "answers" in the per-task sense the other study types use it for).
+    // Only the facilitator/co-facilitator can read recordings back, since
+    // they're a research artifact for post-session review, not a
+    // participant-facing deliverable.
+    function canRecordFocusGroup(studyId) {
+      return signedIn() && isFocusGroupStudy(studyId) &&
+        roleFor(studyId) in [0, 1, 4];
+    }
+
     match /tests/{studyId}/{userId}/{allPaths=**} {
       allow read: if canAccessStorage(studyId) ||
         (userId.matches('heuristic_.*') && canEditStudy(studyId)) ||
+        (userId.matches('focusgroup_.*') && canEditStudy(studyId)) ||
         (request.auth.uid == userId && canAnswerStudy(studyId));
       allow create, update: if
         canAccessStorage(studyId) ||
         (userId.matches('heuristic_.*') && canEditStudy(studyId)) ||
+        (userId.matches('focusgroup_.*') && canRecordFocusGroup(studyId)) ||
         (request.auth.uid == userId && canAnswerStudy(studyId));
       allow delete: if false;
     }

@@ -427,11 +427,17 @@ import { useStore } from 'vuex'
 import { useI18n } from 'vue-i18n'
 import { useDisplay } from 'vuetify'
 import { Track } from 'livekit-client'
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { storage } from '@/app/plugins/firebase'
 import { ACCESS_LEVEL } from '@/shared/utils/accessLevel'
 import { useLiveKitRoom } from '@/shared/components/videoCall/composables/useLiveKitRoom'
 import { useFocusGroupSession } from '@/ux/FocusGroup/composables/useFocusGroupSession'
 import { useSpeakingTime } from '@/ux/FocusGroup/composables/useSpeakingTime'
 import { computeParticipation } from '@/ux/FocusGroup/utils/participation'
+import {
+  buildRecordingStoragePath,
+  resolveRecordingMode,
+} from '@/ux/FocusGroup/utils/recordingPath'
 import SessionLobby from '@/ux/FocusGroup/components/session/SessionLobby.vue'
 import SessionVideoStage from '@/ux/FocusGroup/components/session/SessionVideoStage.vue'
 import TopicPanel from '@/ux/FocusGroup/components/session/TopicPanel.vue'
@@ -480,6 +486,7 @@ const {
   presentStimulus,
   clearStimulus,
   saveNotes,
+  saveRecording,
   playTimer,
   pauseTimer,
   resetTimer,
@@ -797,6 +804,119 @@ watch(
 watch(isEnded, (ended) => {
   if (ended) disconnectCall()
 })
+
+// --- Per-topic recording ---
+// Records the LOCAL attendee's own already-published LiveKit camera/mic
+// tracks (not a fresh getUserMedia() stream, and not a server-side room
+// composite) — one MediaRecorder segment per topic, uploaded to Storage and
+// referenced in RTDB on stop. Facilitator and participants only: observers
+// are subscribe-only in the call, so they have nothing local to record.
+const recordingMode = computed(() =>
+  resolveRecordingMode({
+    recordAudio: sessionConfig.value.recordAudio === true,
+    recordVideo: sessionConfig.value.recordVideo === true,
+    canPublish: !isCallObservator.value,
+  }),
+)
+// Re-keys whenever a new segment should start: recording becomes eligible,
+// or the facilitator advances to a new topic. Changing/nulling this value
+// is what stops the previous segment and starts the next one.
+const recordingSegmentKey = computed(() =>
+  recordingMode.value.shouldRecord && callStarted.value && currentTopicId.value
+    ? currentTopicId.value
+    : null,
+)
+
+let activeRecorder = null
+let activeRecorderChunks = []
+
+function getLocalRecordingStream(kind) {
+  const localParticipant = callRoom.value?.localParticipant
+  if (!localParticipant) return null
+  const tracks = []
+  if (kind === 'video' || kind === 'audio+video') {
+    const camTrack = localParticipant.getTrackPublication(Track.Source.Camera)
+      ?.track?.mediaStreamTrack
+    if (camTrack) tracks.push(camTrack)
+  }
+  if (kind === 'audio' || kind === 'audio+video') {
+    const micTrack = localParticipant.getTrackPublication(
+      Track.Source.Microphone,
+    )?.track?.mediaStreamTrack
+    if (micTrack) tracks.push(micTrack)
+  }
+  return tracks.length ? new MediaStream(tracks) : null
+}
+
+function startTopicRecording() {
+  const stream = getLocalRecordingStream(recordingMode.value.kind)
+  if (!stream) return // Track not published yet — this segment is skipped.
+  activeRecorderChunks = []
+  try {
+    activeRecorder = new MediaRecorder(stream)
+  } catch {
+    activeRecorder = null
+    return
+  }
+  activeRecorder.ondataavailable = (event) => {
+    if (event.data.size > 0) activeRecorderChunks.push(event.data)
+  }
+  activeRecorder.start()
+}
+
+// Stops the current segment (if any) and uploads it under `topicId`. Never
+// stops the underlying MediaStreamTracks — they belong to the live LiveKit
+// publish, not to the recorder, and must keep flowing to the call.
+function stopTopicRecording(topicId) {
+  return new Promise((resolve) => {
+    const recorder = activeRecorder
+    if (!recorder || recorder.state === 'inactive') {
+      resolve()
+      return
+    }
+    const chunks = activeRecorderChunks
+    const kind = recordingMode.value.kind
+    recorder.onstop = async () => {
+      if (chunks.length && topicId) {
+        try {
+          const blob = new Blob(chunks, {
+            type: recorder.mimeType || 'video/webm',
+          })
+          const path = buildRecordingStoragePath({
+            studyId,
+            userId: user.value?.id,
+            topicId,
+            mimeType: blob.type,
+          })
+          const storageReference = storageRef(storage, path)
+          await uploadBytes(storageReference, blob)
+          const url = await getDownloadURL(storageReference)
+          await saveRecording({
+            userId: user.value?.id,
+            topicId,
+            url,
+            kind,
+            sizeBytes: blob.size,
+          })
+        } catch {
+          // Recording is best-effort, same philosophy as the video call
+          // itself: a failed upload shouldn't interrupt the live session.
+        }
+      }
+      resolve()
+    }
+    recorder.stop()
+  })
+}
+
+watch(
+  recordingSegmentKey,
+  async (nextTopicId, previousTopicId) => {
+    if (previousTopicId) await stopTopicRecording(previousTopicId)
+    if (nextTopicId) startTopicRecording()
+  },
+  { immediate: true },
+)
 
 // --- Presence ---
 const participantCount = computed(

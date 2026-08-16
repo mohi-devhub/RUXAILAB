@@ -2681,6 +2681,8 @@
       "shareScreen": "Share screen",
       "stopSharingScreen": "Stop sharing",
       "discussion": "Discussion",
+      "backroom": "Backroom",
+      "backroomHint": "Private to the facilitator and observers — participants never see this.",
       "messagePlaceholder": "Share your thoughts...",
       "noMessagesYet": "No messages yet. Start the discussion.",
       "observerReadonly": "You are observing this discussion.",

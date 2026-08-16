@@ -261,6 +261,7 @@ export function useFocusGroupSession(studyId) {
       participants: participants.value,
       messages: messages.value,
       consents: consents.value,
+      notes: notes.value,
     }
   }
 

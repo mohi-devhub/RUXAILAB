@@ -2527,6 +2527,8 @@
       "shareScreen": "Compartir pantalla",
       "stopSharingScreen": "Dejar de compartir",
       "discussion": "Discusión",
+      "backroom": "Sala privada",
+      "backroomHint": "Privado para el facilitador y los observadores: los participantes nunca ven esto.",
       "messagePlaceholder": "Comparte tus ideas...",
       "noMessagesYet": "Aún no hay mensajes. Inicia la discusión.",
       "observerReadonly": "Estás observando esta discusión.",

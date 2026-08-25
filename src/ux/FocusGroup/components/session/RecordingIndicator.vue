@@ -1,8 +1,10 @@
 <template>
   <!-- Shown only to the attendee actually being recorded (gated by the
        caller on recordingMode.shouldRecord) — the only visible sign a
-       recording is happening at all, or that it briefly stalled. -->
-  <v-tooltip location="top" :text="tooltipText">
+       recording is happening at all, or that it briefly stalled. Sits in
+       the topbar next to the timer, so it stays compact: a blinking dot and
+       a short "REC" tag, nothing more. -->
+  <v-tooltip v-if="active || pending" location="bottom" :text="tooltipText">
     <template #activator="{ props: tip }">
       <div v-bind="tip" class="recording-indicator" :class="{ 'recording-indicator--pending': pending }">
         <span class="recording-indicator__dot" />
@@ -28,9 +30,7 @@ const props = defineProps({
 })
 
 const label = computed(() =>
-  props.active
-    ? t('focusGroup.session.recordingActive')
-    : t('focusGroup.session.recordingPending'),
+  props.active ? t('focusGroup.session.recordingActive') : '',
 )
 const tooltipText = computed(() =>
   props.active
@@ -43,23 +43,24 @@ const tooltipText = computed(() =>
 .recording-indicator {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  gap: 5px;
+  padding: 4px 8px;
   border-radius: 999px;
   background: rgba(var(--v-theme-error), 0.12);
   color: rgb(var(--v-theme-error));
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 .recording-indicator--pending {
   background: rgba(var(--v-theme-on-surface), 0.08);
-  color: rgba(var(--v-theme-on-surface), 0.6);
+  color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
 .recording-indicator__dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: currentColor;
 }
@@ -74,7 +75,7 @@ const tooltipText = computed(() =>
     opacity: 1;
   }
   50% {
-    opacity: 0.35;
+    opacity: 0.3;
   }
 }
 </style>

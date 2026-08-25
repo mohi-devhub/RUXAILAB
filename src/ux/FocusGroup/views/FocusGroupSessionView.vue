@@ -70,6 +70,12 @@
         </span>
       </div>
       <v-spacer />
+      <RecordingIndicator
+        v-if="recordingMode.shouldRecord"
+        :active="recordingActive"
+        :pending="recordingPending"
+        class="me-1"
+      />
       <SessionTimer
         v-if="currentTopic && timerFallbackMs > 0"
         :timer="timerForTopic"
@@ -201,11 +207,6 @@
                   />
                 </template>
               </v-tooltip>
-              <RecordingIndicator
-                v-if="recordingMode.shouldRecord"
-                :active="recordingActive"
-                :pending="recordingPending"
-              />
               <div class="fg-control-divider" />
             </template>
 
@@ -763,6 +764,9 @@ const {
   displayName: computed(() => user.value?.name || user.value?.email || ''),
   accessLevel,
   cooperators: computed(() => test.value?.cooperators || []),
+  // Attendees join a Focus Group session muted/camera-off and opt in,
+  // rather than immediately broadcasting to everyone on connect.
+  autoEnableMedia: false,
 })
 
 // Accumulated LiveKit active-speaker time per identity, feeding the

@@ -2684,7 +2684,6 @@
       "backroom": "Backroom",
       "backroomHint": "Private to the facilitator and observers — participants never see this.",
       "recordingActive": "Recording",
-      "recordingPending": "Starting recording…",
       "recordingActiveHint": "Your camera/mic for this topic is being recorded.",
       "recordingPendingHint": "Waiting for your camera/mic to be ready before recording starts.",
       "messagePlaceholder": "Share your thoughts...",

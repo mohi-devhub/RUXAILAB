@@ -2577,7 +2577,6 @@
       "backroom": "Sala privada",
       "backroomHint": "Privado para el facilitador y los observadores: los participantes nunca ven esto.",
       "recordingActive": "Grabando",
-      "recordingPending": "Iniciando grabación…",
       "recordingActiveHint": "Se está grabando tu cámara/micrófono para este tema.",
       "recordingPendingHint": "Esperando a que tu cámara/micrófono estén listos antes de iniciar la grabación.",
       "messagePlaceholder": "Comparte tus ideas...",

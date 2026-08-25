@@ -1,4 +1,4 @@
-import { admin, functions } from '../f.firebase.js'
+import { admin, functions } from '../core/firebase/f.firebase.js'
 import { runAnalysisPipeline } from '../features/focusGroupAnalysis/index.js'
 
 const ACCESS_LEVEL_ADMIN = 0

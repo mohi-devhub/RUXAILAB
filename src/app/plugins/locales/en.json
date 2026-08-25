@@ -2646,6 +2646,12 @@
       "unsorted": "Unsorted",
       "removeTheme": "Remove theme"
     },
+    "analysis": {
+      "runAnalysis": "Run analysis",
+      "summary": "Summary",
+      "consensusScore": "Consensus",
+      "suggested": "Suggested"
+    },
     "session": {
       "title": "Live Session",
       "backToDashboard": "Back to dashboard",

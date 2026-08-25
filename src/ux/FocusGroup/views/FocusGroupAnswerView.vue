@@ -41,6 +41,19 @@
         </v-col>
 
         <v-col v-if="selectedSession" cols="12" md="8">
+          <div class="d-flex justify-end mb-4">
+            <v-btn
+              color="primary"
+              variant="tonal"
+              prepend-icon="mdi-creation"
+              class="text-none"
+              :loading="analyzing"
+              @click="onRunAnalysis"
+            >
+              {{ $t('focusGroup.analysis.runAnalysis') }}
+            </v-btn>
+          </div>
+
           <v-card
             v-for="topic in topics"
             :key="topic.id"
@@ -64,6 +77,34 @@
               >
                 {{ $t('focusGroup.session.noMessagesYet') }}
               </p>
+
+              <div v-if="topicAnalysis(topic.id)" class="topic-analysis mt-4 pt-3">
+                <div v-if="topicAnalysis(topic.id).summary" class="mb-2">
+                  <span class="text-caption font-weight-bold text-medium-emphasis">
+                    {{ $t('focusGroup.analysis.summary') }}
+                  </span>
+                  <p class="text-body-2 mb-0">{{ topicAnalysis(topic.id).summary }}</p>
+                </div>
+                <div v-if="topicAnalysis(topic.id).keywords.length" class="mb-2">
+                  <v-chip
+                    v-for="keyword in topicAnalysis(topic.id).keywords"
+                    :key="keyword"
+                    size="x-small"
+                    variant="tonal"
+                    class="mr-1 mb-1"
+                  >
+                    {{ keyword }}
+                  </v-chip>
+                </div>
+                <div class="d-flex align-center ga-2">
+                  <span class="text-caption text-medium-emphasis">
+                    {{ $t('focusGroup.analysis.consensusScore') }}
+                  </span>
+                  <v-chip size="x-small" :color="consensusColor(topicAnalysis(topic.id).consensus.score)" variant="flat">
+                    {{ Math.round(topicAnalysis(topic.id).consensus.score * 100) }}%
+                  </v-chip>
+                </div>
+              </div>
             </v-card-text>
           </v-card>
 
@@ -151,6 +192,7 @@ const test = computed(() => store.getters.test)
 const rawSessions = ref({})
 const themes = ref([])
 const loading = ref(true)
+const analyzing = ref(false)
 const selectedSessionId = ref(null)
 let themesLoaded = false
 
@@ -190,6 +232,40 @@ const recordingEntries = computed(() => {
   })
   return entries
 })
+
+// Tier 1 analysis for the selected session's topics, once run:
+// { [topicId]: { keywords, summary, consensus } }
+const topicAnalysis = (topicId) =>
+  selectedSession.value?.analysis?.perTopic?.[topicId] ?? null
+
+const consensusColor = (score) => {
+  if (score >= 0.66) return 'success'
+  if (score >= 0.33) return 'warning'
+  return 'error'
+}
+
+const onRunAnalysis = async () => {
+  if (!selectedSession.value) return
+  analyzing.value = true
+  try {
+    const result = await store.dispatch('runFocusGroupAnalysis', {
+      studyId: test.value?.id,
+      answersDocId: test.value?.answersDocId,
+      sessionId: selectedSession.value.sessionId,
+    })
+    if (!result) return
+    rawSessions.value = {
+      ...rawSessions.value,
+      [selectedSession.value.sessionId]: {
+        ...rawSessions.value[selectedSession.value.sessionId],
+        analysis: { perTopic: result.perTopic },
+      },
+    }
+    themes.value = result.themes
+  } finally {
+    analyzing.value = false
+  }
+}
 
 // Persist the theme board immediately on every drag-and-drop change, the
 // same "no Save button" pattern used elsewhere (stimulus library, breakout

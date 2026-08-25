@@ -2539,6 +2539,12 @@
       "unsorted": "Sin clasificar",
       "removeTheme": "Eliminar tema"
     },
+    "analysis": {
+      "runAnalysis": "Ejecutar análisis",
+      "summary": "Resumen",
+      "consensusScore": "Consenso",
+      "suggested": "Sugerido"
+    },
     "session": {
       "title": "Sesión en Vivo",
       "backToDashboard": "Volver al panel",

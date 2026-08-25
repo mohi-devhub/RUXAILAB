@@ -25,9 +25,31 @@ describe('computeConsensus', () => {
   })
 
   it('handles fewer than two responses without dividing by zero', () => {
-    expect(computeConsensus([])).toEqual({ score: 0, sharedOpinions: [], divergencePoints: [] })
+    expect(computeConsensus([])).toEqual({
+      score: 0,
+      sharedOpinions: [],
+      divergencePoints: [],
+      alignment: {},
+    })
     expect(
       computeConsensus([{ participantId: 'p1', text: 'Solo response.' }]),
-    ).toEqual({ score: 1, sharedOpinions: [], divergencePoints: [] })
+    ).toEqual({
+      score: 1,
+      sharedOpinions: [],
+      divergencePoints: [],
+      alignment: { p1: 1 },
+    })
+  })
+
+  it('gives every participant an alignment score, lower for the outlier', () => {
+    const responses = [
+      { participantId: 'p1', text: 'The checkout flow was smooth and fast for me.' },
+      { participantId: 'p2', text: 'Checkout flow felt smooth and fast, no complaints.' },
+      { participantId: 'p3', text: 'The pricing page had a broken image and outdated copyright year in the footer.' },
+    ]
+    const { alignment } = computeConsensus(responses)
+    expect(Object.keys(alignment).sort()).toEqual(['p1', 'p2', 'p3'])
+    expect(alignment.p3).toBeLessThan(alignment.p1)
+    expect(alignment.p3).toBeLessThan(alignment.p2)
   })
 })

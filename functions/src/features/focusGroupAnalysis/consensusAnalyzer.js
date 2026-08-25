@@ -13,12 +13,17 @@ import { computeTfIdf, cosineSimilarity, tokenize } from './textVectorize.js'
  *   score: number,
  *   sharedOpinions: Array<{ statement: string, supportingParticipants: string[], confidence: number }>,
  *   divergencePoints: Array<{ description: string, perspectives: Array<{ position: string, participantIds: string[] }> }>,
+ *   alignment: Object,   // { [participantId]: 0-1 similarity to the rest of the group }
  * }}
  */
 export function computeConsensus(responses) {
   const nonEmpty = responses.filter((r) => r.text && r.text.trim())
   if (nonEmpty.length < 2) {
-    return { score: nonEmpty.length ? 1 : 0, sharedOpinions: [], divergencePoints: [] }
+    const alignment = {}
+    nonEmpty.forEach((r) => {
+      alignment[r.participantId] = 1
+    })
+    return { score: nonEmpty.length ? 1 : 0, sharedOpinions: [], divergencePoints: [], alignment }
   }
 
   const vectors = computeTfIdf(nonEmpty.map((r) => tokenize(r.text)))
@@ -82,9 +87,15 @@ export function computeConsensus(responses) {
         ]
       : []
 
+  const alignment = {}
+  nonEmpty.forEach((r) => {
+    alignment[r.participantId] = Math.round(avgSimilarity.get(r.participantId) * 100) / 100
+  })
+
   return {
     score: Math.round(score * 100) / 100,
     sharedOpinions,
     divergencePoints,
+    alignment,
   }
 }

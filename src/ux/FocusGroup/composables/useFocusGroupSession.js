@@ -207,19 +207,33 @@ export function useFocusGroupSession(studyId) {
   }
 
   /**
-   * Record a finished per-topic recording segment. Each attendee writes only
-   * their own entry (own camera/mic, own upload), the same self-scoped
-   * pattern as observer notes — never someone else's recording.
+   * Record a finished recording segment. Each attendee writes only their own
+   * entry (own camera/mic, own upload), the same self-scoped pattern as
+   * observer notes — never someone else's recording. Indexed by
+   * `segmentIndex` rather than one entry per topic: a mid-topic cutover
+   * (a stale/drifted track, forced by useLocalRecordingStream + the
+   * recording watchdog) produces more than one segment for the same topic,
+   * and each must be kept, not overwritten.
    */
-  async function saveRecording({ userId, topicId, url, kind, sizeBytes }) {
+  async function saveRecording({
+    userId,
+    topicId,
+    segmentIndex = 0,
+    url,
+    kind,
+    sizeBytes,
+    cutoverReason = null,
+  }) {
     const recordingRef = dbRef(
       database,
-      `${rootPath}/recordings/${userId}/${topicId}`,
+      `${rootPath}/recordings/${userId}/${topicId}/${segmentIndex}`,
     )
     await set(recordingRef, {
       url,
       kind: kind ?? 'video',
       sizeBytes: sizeBytes ?? 0,
+      segmentIndex,
+      cutoverReason,
       recordedAt: serverTimestamp(),
     })
   }

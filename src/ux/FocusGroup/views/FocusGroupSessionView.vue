@@ -1091,6 +1091,7 @@ const enterSession = async () => {
     userId: user.value?.id,
     name: user.value?.name || user.value?.email || '',
     role: roleLabel.value,
+    accessLevel: accessLevel.value,
   })
 }
 

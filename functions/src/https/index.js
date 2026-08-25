@@ -16,3 +16,4 @@ export {
   transcriptionDelete,
   transcriptionDeleteByUser,
 } from '../features/transcription/index.js'
+export * from './focusGroupAnalysis.js'

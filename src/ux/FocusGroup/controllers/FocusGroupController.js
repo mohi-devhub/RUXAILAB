@@ -72,4 +72,14 @@ export default class FocusGroupController extends Controller {
       ),
     })
   }
+
+  /**
+   * Persist a Tier 3 "Deep Analysis" synthesis (text only — the researcher's
+   * LLM endpoint/key are never sent here, they stay client-side).
+   */
+  async saveDeepAnalysis(answersDocId, sessionId, deepAnalysis) {
+    return this.update(ANSWERS_COLLECTION, answersDocId, {
+      [`sessions.${sessionId}.analysis.deepAnalysis`]: deepAnalysis,
+    })
+  }
 }

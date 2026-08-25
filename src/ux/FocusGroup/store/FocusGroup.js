@@ -79,6 +79,16 @@ export default {
     },
 
     /**
+     * Persist a Tier 3 "Deep Analysis" synthesis (text only). The
+     * researcher's LLM endpoint/key are session-only client state and are
+     * never dispatched here.
+     */
+    async saveFocusGroupDeepAnalysis(_, { answersDocId, sessionId, deepAnalysis }) {
+      if (!answersDocId || !sessionId) return
+      await focusGroupController.saveDeepAnalysis(answersDocId, sessionId, deepAnalysis)
+    },
+
+    /**
      * Persist the Test screen in one go: the discussion guide and the session
      * configuration are edited together, so they are saved together.
      */

@@ -2545,6 +2545,25 @@
       "consensusScore": "Consenso",
       "suggested": "Sugerido"
     },
+    "analytics": {
+      "title": "Analítica",
+      "subtitle": "Temas, consenso, participación y un informe exportable para cada sesión finalizada.",
+      "downloadReport": "Descargar informe",
+      "keywordsTitle": "Palabras clave",
+      "consensusTitle": "Consenso por tema",
+      "engagementTitle": "Participación de los asistentes",
+      "deepAnalysisTitle": "Análisis profundo",
+      "deepAnalysisHint": "Opcional: envía el análisis anterior a tu propio endpoint de LLM para obtener una síntesis. Tu clave de API nunca se guarda.",
+      "deepAnalysisEndpoint": "URL del endpoint",
+      "deepAnalysisKey": "Clave de API",
+      "deepAnalysisModel": "Modelo",
+      "deepAnalysisGenerate": "Generar",
+      "deepAnalysisSave": "Guardar en la sesión",
+      "deepAnalysisSuccess": "Síntesis generada",
+      "noKeywordsYet": "Ejecuta el análisis para ver palabras clave.",
+      "noAnalysisYet": "Ejecuta el análisis para ver esto.",
+      "noEngagementYet": "Todavía no hay actividad registrada en esta sesión."
+    },
     "session": {
       "title": "Sesión en Vivo",
       "backToDashboard": "Volver al panel",

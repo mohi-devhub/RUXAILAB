@@ -362,6 +362,11 @@ const navigator = computed(() => {
       path: `/focusGroup/answers/${test.value.id}`,
     },
     {
+      title: 'Analytics',
+      icon: 'mdi-chart-box-outline',
+      path: `/focusGroup/analytics/${test.value.id}`,
+    },
+    {
       title: 'Settings',
       icon: ICONS.COG,
       path: `/focusGroup/settings/${test.value.id}`,

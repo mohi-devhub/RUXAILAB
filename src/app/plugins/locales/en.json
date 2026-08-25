@@ -2652,6 +2652,25 @@
       "consensusScore": "Consensus",
       "suggested": "Suggested"
     },
+    "analytics": {
+      "title": "Analytics",
+      "subtitle": "Themes, consensus, engagement, and an exportable report for each finished session.",
+      "downloadReport": "Download report",
+      "keywordsTitle": "Keywords",
+      "consensusTitle": "Consensus by topic",
+      "engagementTitle": "Participant engagement",
+      "deepAnalysisTitle": "Deep analysis",
+      "deepAnalysisHint": "Optional — send the analysis above to your own LLM endpoint for a synthesized summary. Your API key is never saved.",
+      "deepAnalysisEndpoint": "Endpoint URL",
+      "deepAnalysisKey": "API key",
+      "deepAnalysisModel": "Model",
+      "deepAnalysisGenerate": "Generate",
+      "deepAnalysisSave": "Save to session",
+      "deepAnalysisSuccess": "Synthesis generated",
+      "noKeywordsYet": "Run analysis to see keywords.",
+      "noAnalysisYet": "Run analysis to see this.",
+      "noEngagementYet": "No activity recorded for this session yet."
+    },
     "session": {
       "title": "Live Session",
       "backToDashboard": "Back to dashboard",

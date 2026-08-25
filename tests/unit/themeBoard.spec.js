@@ -102,6 +102,9 @@ describe('themesFromBuckets', () => {
       {
         id: 'theme-1',
         label: 'Theme One',
+        keywords: [],
+        frequency: 0,
+        source: 'manual',
         responseRefs: [
           { sessionId: 's1', topicId: 't1', messageId: 'm1', participantId: 'u1', excerpt: 'a' },
         ],
@@ -112,5 +115,23 @@ describe('themesFromBuckets', () => {
   it('produces an empty responseRefs array for a theme with an empty bucket', () => {
     const result = themesFromBuckets([{ id: 'theme-1', label: 'Empty' }], {})
     expect(result[0].responseRefs).toEqual([])
+  })
+
+  it('carries an NLP theme’s keywords/frequency/source through a bucket edit', () => {
+    const themes = [
+      {
+        id: 'nlp-theme-0',
+        label: 'navigation confusion',
+        keywords: ['navigation', 'confusion'],
+        frequency: 2,
+        source: 'nlp',
+      },
+    ]
+    const result = themesFromBuckets(themes, {})
+    expect(result[0]).toMatchObject({
+      keywords: ['navigation', 'confusion'],
+      frequency: 2,
+      source: 'nlp',
+    })
   })
 })

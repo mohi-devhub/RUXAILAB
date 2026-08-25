@@ -55,6 +55,15 @@
           <v-chip size="x-small" variant="tonal" class="ml-1">
             {{ (buckets[theme.id] || []).length }}
           </v-chip>
+          <v-chip
+            v-if="theme.source === 'nlp'"
+            size="x-small"
+            variant="flat"
+            color="secondary"
+            class="ml-1"
+          >
+            {{ $t('focusGroup.analysis.suggested') }}
+          </v-chip>
           <v-spacer />
           <v-btn
             icon="mdi-delete-outline"
@@ -110,6 +119,9 @@ function rebuildBoard() {
   themes.value = props.modelValue.map((theme) => ({
     id: theme.id,
     label: theme.label,
+    keywords: theme.keywords ?? [],
+    frequency: theme.frequency ?? 0,
+    source: theme.source ?? 'manual',
   }))
   const responses = flattenSessionResponses(props.session)
   const { unsorted: nextUnsorted, buckets: nextBuckets } =

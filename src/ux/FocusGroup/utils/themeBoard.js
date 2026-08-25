@@ -70,16 +70,22 @@ export function partitionResponsesByTheme(responses, themes) {
 
 /**
  * Rebuilds each theme's `responseRefs` from the current bucket contents,
- * after a drag-and-drop change moved responses between buckets.
+ * after a drag-and-drop change moved responses between buckets. Carries
+ * `keywords`/`frequency`/`source` through untouched — an NLP-suggested
+ * theme edited by dragging responses in or out stays tagged `source: 'nlp'`,
+ * it doesn't quietly become indistinguishable from a manual one.
  *
- * @param {Array} themes - [{ id, label }]
+ * @param {Array} themes - [{ id, label, keywords?, frequency?, source? }]
  * @param {Object} buckets - { [themeId]: Array<response> }
- * @returns {Array} [{ id, label, responseRefs }]
+ * @returns {Array} [{ id, label, responseRefs, keywords, frequency, source }]
  */
 export function themesFromBuckets(themes, buckets) {
   return themes.map((theme) => ({
     id: theme.id,
     label: theme.label,
+    keywords: theme.keywords ?? [],
+    frequency: theme.frequency ?? 0,
+    source: theme.source ?? 'manual',
     responseRefs: (buckets[theme.id] ?? []).map(
       ({ sessionId, topicId, messageId, participantId, excerpt }) => ({
         sessionId,

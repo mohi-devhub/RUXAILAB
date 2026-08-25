@@ -918,6 +918,21 @@ watch(
   { immediate: true },
 )
 
+// Publishing a track is asynchronous, so an attendee who joins muted and
+// turns their camera/mic on mid-topic won't have a track yet at the moment
+// recordingSegmentKey last changed — startTopicRecording() silently skips
+// that segment and, without this, never gets another chance to record it.
+// Retry whenever the toggle state changes, but only if nothing is already
+// recording (an active or already-stopped recorder is left in place).
+watch([isCameraEnabled, isMicrophoneEnabled], () => {
+  if (
+    recordingSegmentKey.value &&
+    (!activeRecorder || activeRecorder.state === 'inactive')
+  ) {
+    startTopicRecording()
+  }
+})
+
 // --- Presence ---
 const participantCount = computed(
   () => Object.keys(participants.value || {}).length,

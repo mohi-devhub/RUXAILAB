@@ -201,6 +201,11 @@
                   />
                 </template>
               </v-tooltip>
+              <RecordingIndicator
+                v-if="recordingMode.shouldRecord"
+                :active="recordingActive"
+                :pending="recordingPending"
+              />
               <div class="fg-control-divider" />
             </template>
 
@@ -455,6 +460,7 @@ import StimulusPanel from '@/ux/FocusGroup/components/session/StimulusPanel.vue'
 import StimulusStage from '@/ux/FocusGroup/components/session/StimulusStage.vue'
 import TopicDiscussion from '@/ux/FocusGroup/components/session/TopicDiscussion.vue'
 import ParticipantList from '@/ux/FocusGroup/components/session/ParticipantList.vue'
+import RecordingIndicator from '@/ux/FocusGroup/components/session/RecordingIndicator.vue'
 import ObservatorNotes from '@/ux/UserTest/components/ObservatorNotes.vue'
 import ConsentStep from '@/ux/UserTest/components/steps/ConsentStep.vue'
 
@@ -845,6 +851,12 @@ const recordingSegmentKey = computed(() =>
 // Drives the recording indicator only — the actual start/stop bookkeeping
 // below lives in plain variables, matching the rest of this section.
 const recordingActive = ref(false)
+// A segment is expected but not running yet — mid grace-wait on a track, or
+// between a cutover's stop and its restart — distinct from "not recording
+// at all" so the indicator can show "about to record" instead of nothing.
+const recordingPending = computed(
+  () => Boolean(recordingSegmentKey.value) && !recordingActive.value,
+)
 
 const RECORDING_TIMESLICE_MS = 3000
 const RECORDING_GRACE_MS = 2000

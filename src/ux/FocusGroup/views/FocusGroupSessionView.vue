@@ -421,7 +421,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import { useI18n } from 'vue-i18n'
@@ -433,11 +433,19 @@ import { ACCESS_LEVEL } from '@/shared/utils/accessLevel'
 import { useLiveKitRoom } from '@/shared/components/videoCall/composables/useLiveKitRoom'
 import { useFocusGroupSession } from '@/ux/FocusGroup/composables/useFocusGroupSession'
 import { useSpeakingTime } from '@/ux/FocusGroup/composables/useSpeakingTime'
+import { useLocalRecordingStream } from '@/ux/FocusGroup/composables/useLocalRecordingStream'
 import { computeParticipation } from '@/ux/FocusGroup/utils/participation'
 import {
   buildRecordingStoragePath,
   resolveRecordingMode,
 } from '@/ux/FocusGroup/utils/recordingPath'
+import {
+  trackIdsFor,
+  requiredTrackSlots,
+  requiredTracksReady,
+  haveRequiredTracksDrifted,
+} from '@/ux/FocusGroup/utils/recordingTrackSync'
+import { evaluateRecordingStaleness } from '@/ux/FocusGroup/utils/recordingWatchdog'
 import SessionLobby from '@/ux/FocusGroup/components/session/SessionLobby.vue'
 import SessionVideoStage from '@/ux/FocusGroup/components/session/SessionVideoStage.vue'
 import TopicPanel from '@/ux/FocusGroup/components/session/TopicPanel.vue'
@@ -756,6 +764,12 @@ const {
 // participationByUser below.
 const { speakingMs } = useSpeakingTime(callRoom)
 
+// The local attendee's currently-published camera/mic tracks, kept live for
+// the whole call (not re-derived per topic) — see the recording section
+// below for why a one-shot snapshot isn't enough.
+const { cameraTrack: localCameraTrack, microphoneTrack: localMicrophoneTrack } =
+  useLocalRecordingStream(callRoom)
+
 const localVideoState = computed(() => ({
   name: user.value?.name || user.value?.email?.split('@')[0] || '',
   isObservator: isCallObservator.value,
@@ -808,9 +822,11 @@ watch(isEnded, (ended) => {
 // --- Per-topic recording ---
 // Records the LOCAL attendee's own already-published LiveKit camera/mic
 // tracks (not a fresh getUserMedia() stream, and not a server-side room
-// composite) — one MediaRecorder segment per topic, uploaded to Storage and
-// referenced in RTDB on stop. Facilitator and participants only: observers
-// are subscribe-only in the call, so they have nothing local to record.
+// composite) — one or more MediaRecorder segments per topic (a mid-topic
+// track drift or staleness forces a cutover to a fresh segment rather than
+// silently degrading), uploaded to Storage and referenced in RTDB on stop.
+// Facilitator and participants only: observers are subscribe-only in the
+// call, so they have nothing local to record.
 const recordingMode = computed(() =>
   resolveRecordingMode({
     recordAudio: sessionConfig.value.recordAudio === true,
@@ -826,32 +842,82 @@ const recordingSegmentKey = computed(() =>
     ? currentTopicId.value
     : null,
 )
+// Drives the recording indicator only — the actual start/stop bookkeeping
+// below lives in plain variables, matching the rest of this section.
+const recordingActive = ref(false)
+
+const RECORDING_TIMESLICE_MS = 3000
+const RECORDING_GRACE_MS = 2000
+const WATCHDOG_INTERVAL_MS = 3000
 
 let activeRecorder = null
 let activeRecorderChunks = []
+let activeSegmentIndex = 0
+let activeSegmentStartedAt = 0
+let activeSegmentLastChunkAt = 0
+let activeSegmentChunkSizes = []
+let activeSegmentTrackIds = { camera: null, microphone: null }
+let graceTimeoutId = null
+let watchdogIntervalId = null
 
-function getLocalRecordingStream(kind) {
-  const localParticipant = callRoom.value?.localParticipant
-  if (!localParticipant) return null
+function clearRecordingGraceTimeout() {
+  if (graceTimeoutId) {
+    clearTimeout(graceTimeoutId)
+    graceTimeoutId = null
+  }
+}
+
+function stopRecordingWatchdog() {
+  if (watchdogIntervalId) {
+    clearInterval(watchdogIntervalId)
+    watchdogIntervalId = null
+  }
+}
+
+function startRecordingWatchdog() {
+  stopRecordingWatchdog()
+  watchdogIntervalId = setInterval(checkRecordingHealth, WATCHDOG_INTERVAL_MS)
+}
+
+// Builds a FRESH MediaStream from whatever the local track refs currently
+// hold. Never reused across calls: Chromium doesn't reliably pick up a
+// track added to a MediaStream after MediaRecorder.start(), so every track
+// change is handled as a clean segment cutover (stop + upload + start),
+// never an in-place edit of a live recorder's stream.
+function buildRecordingStream(kind) {
   const tracks = []
   if (kind === 'video' || kind === 'audio+video') {
-    const camTrack = localParticipant.getTrackPublication(Track.Source.Camera)
-      ?.track?.mediaStreamTrack
-    if (camTrack) tracks.push(camTrack)
+    if (localCameraTrack.value) tracks.push(localCameraTrack.value)
   }
   if (kind === 'audio' || kind === 'audio+video') {
-    const micTrack = localParticipant.getTrackPublication(
-      Track.Source.Microphone,
-    )?.track?.mediaStreamTrack
-    if (micTrack) tracks.push(micTrack)
+    if (localMicrophoneTrack.value) tracks.push(localMicrophoneTrack.value)
   }
   return tracks.length ? new MediaStream(tracks) : null
 }
 
 function startTopicRecording() {
-  const stream = getLocalRecordingStream(recordingMode.value.kind)
-  if (!stream) return // Track not published yet — this segment is skipped.
+  clearRecordingGraceTimeout()
+  const kind = recordingMode.value.kind
+  const currentTrackIds = trackIdsFor({
+    cameraTrack: localCameraTrack.value,
+    microphoneTrack: localMicrophoneTrack.value,
+  })
+  if (!requiredTracksReady({ currentTrackIds, kind })) {
+    // Track publishing is async — not ready yet doesn't mean it never will
+    // be. Retry shortly instead of silently skipping this segment for good.
+    graceTimeoutId = setTimeout(() => {
+      graceTimeoutId = null
+      if (recordingSegmentKey.value) startTopicRecording()
+    }, RECORDING_GRACE_MS)
+    return
+  }
+  const stream = buildRecordingStream(kind)
+  if (!stream) return
   activeRecorderChunks = []
+  activeSegmentStartedAt = Date.now()
+  activeSegmentLastChunkAt = 0
+  activeSegmentChunkSizes = []
+  activeSegmentTrackIds = currentTrackIds
   try {
     activeRecorder = new MediaRecorder(stream)
   } catch {
@@ -859,15 +925,30 @@ function startTopicRecording() {
     return
   }
   activeRecorder.ondataavailable = (event) => {
+    activeSegmentLastChunkAt = Date.now()
+    activeSegmentChunkSizes.push(event.data.size)
+    if (activeSegmentChunkSizes.length > 5) activeSegmentChunkSizes.shift()
     if (event.data.size > 0) activeRecorderChunks.push(event.data)
   }
-  activeRecorder.start()
+  // A timeslice (rather than an argument-less start()) makes ondataavailable
+  // fire periodically instead of only at stop() — both feeds the watchdog
+  // real chunk-timing data and means a crash mid-topic doesn't lose 100% of
+  // the segment.
+  activeRecorder.start(RECORDING_TIMESLICE_MS)
+  recordingActive.value = true
+  startRecordingWatchdog()
 }
 
 // Stops the current segment (if any) and uploads it under `topicId`. Never
 // stops the underlying MediaStreamTracks — they belong to the live LiveKit
 // publish, not to the recorder, and must keep flowing to the call.
-function stopTopicRecording(topicId) {
+function stopTopicRecording(
+  topicId,
+  { segmentIndex = 0, cutoverReason = null } = {},
+) {
+  clearRecordingGraceTimeout()
+  stopRecordingWatchdog()
+  recordingActive.value = false
   return new Promise((resolve) => {
     const recorder = activeRecorder
     if (!recorder || recorder.state === 'inactive') {
@@ -894,9 +975,11 @@ function stopTopicRecording(topicId) {
           await saveRecording({
             userId: user.value?.id,
             topicId,
+            segmentIndex,
             url,
             kind,
             sizeBytes: blob.size,
+            cutoverReason,
           })
         } catch {
           // Recording is best-effort, same philosophy as the video call
@@ -909,28 +992,88 @@ function stopTopicRecording(topicId) {
   })
 }
 
+// Shared by both the track-drift watcher and the staleness watchdog below:
+// end the current segment (tagged with why), then start a fresh one for the
+// same topic rather than leaving a silently degraded recording running.
+async function cutoverTopicRecording(reason) {
+  const topicId = currentTopicId.value
+  if (!topicId) return
+  await stopTopicRecording(topicId, {
+    segmentIndex: activeSegmentIndex,
+    cutoverReason: reason,
+  })
+  activeSegmentIndex += 1
+  if (recordingSegmentKey.value) startTopicRecording()
+}
+
+// Catches staleness the track-drift watcher structurally can't see: LiveKit
+// only fires publish/unpublish events when IT knows something changed. A
+// backgrounded tab silently starving frame delivery, or a device dying
+// without a clean unpublish, changes nothing LiveKit is aware of — only
+// track.readyState and actual chunk timing/size can catch those.
+function checkRecordingHealth() {
+  if (!activeRecorder || activeRecorder.state !== 'recording') return
+  const kind = recordingMode.value.kind
+  const required = requiredTrackSlots(kind)
+  const { stale, reason } = evaluateRecordingStaleness({
+    now: Date.now(),
+    segmentStartedAt: activeSegmentStartedAt,
+    lastChunkAt: activeSegmentLastChunkAt,
+    recentChunkSizes: activeSegmentChunkSizes,
+    cameraTrackState: required.camera
+      ? (localCameraTrack.value?.readyState ?? 'ended')
+      : null,
+    microphoneTrackState: required.microphone
+      ? (localMicrophoneTrack.value?.readyState ?? 'ended')
+      : null,
+  })
+  if (stale) cutoverTopicRecording(reason)
+}
+
 watch(
   recordingSegmentKey,
   async (nextTopicId, previousTopicId) => {
-    if (previousTopicId) await stopTopicRecording(previousTopicId)
+    if (previousTopicId) {
+      await stopTopicRecording(previousTopicId, {
+        segmentIndex: activeSegmentIndex,
+      })
+    }
+    activeSegmentIndex = 0
     if (nextTopicId) startTopicRecording()
   },
   { immediate: true },
 )
 
-// Publishing a track is asynchronous, so an attendee who joins muted and
-// turns their camera/mic on mid-topic won't have a track yet at the moment
-// recordingSegmentKey last changed — startTopicRecording() silently skips
-// that segment and, without this, never gets another chance to record it.
-// Retry whenever the toggle state changes, but only if nothing is already
-// recording (an active or already-stopped recorder is left in place).
-watch([isCameraEnabled, isMicrophoneEnabled], () => {
-  if (
-    recordingSegmentKey.value &&
-    (!activeRecorder || activeRecorder.state === 'inactive')
-  ) {
+// Reacts to the local camera/mic tracks' ACTUAL publish state (not the mute
+// toggle booleans, which — with this app's default LiveKit room config —
+// don't even change on an ordinary mute) so a late publish, an unpublish,
+// or a mid-segment track replace all get picked up: starts the segment if
+// nothing is recording yet, or cuts over to a fresh segment if a track the
+// running segment depends on has changed since it started.
+watch([localCameraTrack, localMicrophoneTrack], () => {
+  if (!recordingSegmentKey.value) return
+  if (!activeRecorder || activeRecorder.state === 'inactive') {
     startTopicRecording()
+    return
   }
+  const currentTrackIds = trackIdsFor({
+    cameraTrack: localCameraTrack.value,
+    microphoneTrack: localMicrophoneTrack.value,
+  })
+  if (
+    haveRequiredTracksDrifted({
+      recordedTrackIds: activeSegmentTrackIds,
+      currentTrackIds,
+      kind: recordingMode.value.kind,
+    })
+  ) {
+    cutoverTopicRecording('track-changed')
+  }
+})
+
+onBeforeUnmount(() => {
+  clearRecordingGraceTimeout()
+  stopRecordingWatchdog()
 })
 
 // --- Presence ---
